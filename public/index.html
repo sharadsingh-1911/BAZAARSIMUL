@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BazaarSimul — Paper Trading Terminal</title>
+<meta name="description" content="Practise trading NSE equities with real charges and no real money.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<!-- ===================== AUTH ===================== -->
+<div class="gate" id="gate" hidden>
+  <div class="gate-card">
+    <div class="gate-brand">Bazaar<span>Simul</span></div>
+    <div class="gate-sub">Paper trading terminal &middot; NSE equities &middot; end-of-day prices</div>
+
+    <div class="slip">
+      <div class="slip-hd"><span id="gate-title">Sign in</span><span id="gate-capital">&#8377;1,00,000 to start</span></div>
+      <div class="slip-body">
+        <div class="tabs" role="group" aria-label="Sign in or register">
+          <button id="tab-login" aria-pressed="true">Sign in</button>
+          <button id="tab-register" aria-pressed="false">Create account</button>
+        </div>
+
+        <div class="field">
+          <label for="username">Username</label>
+          <input id="username" autocomplete="username" spellcheck="false" placeholder="lowercase, digits, underscore">
+        </div>
+        <div class="field reg-only" hidden>
+          <label for="displayName">Display name <span class="opt">optional</span></label>
+          <input id="displayName" autocomplete="name" placeholder="shown on the leaderboard">
+        </div>
+        <div class="field reg-only" hidden>
+          <label for="email">Email <span class="opt">optional</span></label>
+          <input id="email" type="email" autocomplete="email" placeholder="for account recovery later">
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" type="password" autocomplete="current-password" placeholder="at least 8 characters">
+        </div>
+
+        <button class="btn-primary" id="gate-submit">Sign in</button>
+        <div class="msg-error" id="gate-error" role="alert"></div>
+
+        <div class="gate-foot">
+          <span id="gate-switch-text">No account yet?</span>
+          <button class="link" id="gate-switch">Create one</button>
+          <div class="hairline"></div>
+          Accounts and portfolios are stored server-side in MongoDB. Passwords are
+          hashed with bcrypt; the API never returns a hash.
+        </div>
+      </div>
+    </div>
+
+    <div class="gate-status" id="gate-status"></div>
+  </div>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div id="app" hidden>
+  <div class="tape" aria-hidden="true"><div class="tape-track" id="tape"></div></div>
+
+  <div class="wrap">
+    <header class="mast">
+      <div>
+        <div class="brand">Bazaar<span>Simul</span></div>
+        <div class="sub" id="data-note">Loading market data&hellip;</div>
+      </div>
+      <div class="mast-right">
+        <div class="pill" id="session-pill"><span class="dot" id="session-dot"></span><span id="session-text">&mdash;</span></div>
+        <button class="pill btn" id="btn-refresh" title="Refresh quotes">&#8635; Refresh</button>
+        <button class="pill btn" id="btn-logout">&mdash;</button>
+      </div>
+    </header>
+
+    <div class="figures">
+      <div class="fig"><div class="fig-k">Net worth</div><div class="fig-v" id="f-net">&mdash;</div><div class="fig-n" id="f-net-n"></div></div>
+      <div class="fig"><div class="fig-k">Available cash</div><div class="fig-v" id="f-cash">&mdash;</div><div class="fig-n" id="f-cash-n"></div></div>
+      <div class="fig"><div class="fig-k">Open P&amp;L</div><div class="fig-v" id="f-open">&mdash;</div><div class="fig-n" id="f-open-n"></div></div>
+      <div class="fig"><div class="fig-k">Booked P&amp;L</div><div class="fig-v" id="f-real">&mdash;</div><div class="fig-n" id="f-real-n"></div></div>
+    </div>
+
+    <div class="cols">
+      <div>
+        <section class="blk">
+          <h2 class="hd">Instrument search <em>RELIANCE &middot; RELIANCE.NS &middot; NSE:RELIANCE all resolve</em></h2>
+          <div class="searchbar">
+            <input id="search" placeholder="Company, symbol or sector" autocomplete="off" spellcheck="false" aria-label="Search instruments">
+            <kbd>/</kbd>
+          </div>
+          <div id="search-results"></div>
+        </section>
+
+        <section class="blk">
+          <h2 class="hd">Watchlist <em id="hd-watch"></em></h2>
+          <div class="scroll" id="watchlist"></div>
+        </section>
+
+        <section class="blk">
+          <h2 class="hd">Holdings <em id="hd-holdings"></em></h2>
+          <div class="scroll" id="holdings"></div>
+        </section>
+
+        <section class="blk">
+          <h2 class="hd">Order book <em id="hd-orders"></em></h2>
+          <div class="scroll" id="orders"></div>
+        </section>
+      </div>
+
+      <div>
+        <section class="blk" id="quote-block"></section>
+
+        <section class="blk">
+          <h2 class="hd">Order pad <em id="pad-symbol">no instrument</em></h2>
+          <div class="pad">
+            <div class="pad-body">
+              <div class="sides" role="group" aria-label="Order side">
+                <button id="side-buy" aria-pressed="true">Buy</button>
+                <button id="side-sell" class="sell" aria-pressed="false">Sell</button>
+              </div>
+              <div class="row">
+                <div class="field"><label for="qty">Quantity</label>
+                  <input id="qty" type="number" min="1" step="1" value="1"></div>
+                <div class="field"><label for="order-type">Order type</label>
+                  <select id="order-type"><option value="MARKET">Market</option><option value="LIMIT">Limit</option></select></div>
+              </div>
+              <div class="row"><div class="field"><label for="limit-price">Limit price</label>
+                <input id="limit-price" type="number" min="0" step="0.05" disabled></div></div>
+              <div class="quickqty" id="quick-qty"></div>
+              <div class="contract" id="contract"></div>
+              <button class="btn-primary" id="btn-execute" disabled>Pick an instrument</button>
+              <div class="msg-error" id="pad-error" role="alert"></div>
+            </div>
+            <div class="stamp" id="stamp" aria-hidden="true"><div class="stamp-mark" id="stamp-mark">Filled</div></div>
+          </div>
+        </section>
+
+        <section class="blk">
+          <h2 class="hd">Returns</h2>
+          <div class="perf" id="perf"></div>
+        </section>
+      </div>
+    </div>
+
+    <footer class="foot">
+      <p class="disc">
+        Prices are end-of-day closes, so quotes lag the live market by up to one
+        trading session. Charges follow the Indian equity-delivery schedule (STT,
+        exchange, SEBI, stamp duty, GST, DP), which is why round-tripping costs
+        you something here. Nothing on this site is investment advice.
+      </p>
+      <button class="btn-danger" id="btn-reset">Reset account</button>
+    </footer>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

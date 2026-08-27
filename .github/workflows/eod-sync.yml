@@ -1,0 +1,23 @@
+name: EOD price sync
+
+on:
+  schedule:
+    # 13:00 UTC = 18:30 IST, weekdays. Three hours after the 15:30 close, so the
+    # provider has settled the official figure rather than a provisional one.
+    - cron: '0 13 * * 1-5'
+  workflow_dispatch:          # run it by hand from the Actions tab
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Trigger sync on the deployed app
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: node src/jobs/triggerSync.js

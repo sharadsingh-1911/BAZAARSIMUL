@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: bazaarsimul
+    runtime: node
+    plan: free
+    region: singapore          # closest to India; oregon is the default
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # In-process cron cannot be trusted on an instance that sleeps — it stops
+      # firing silently. GitHub Actions drives the sync instead.
+      - key: ENABLE_CRON
+        value: "false"
+      - key: STARTING_CAPITAL
+        value: "100000"
+      - key: MIN_CAGR_DAYS
+        value: "30"
+      # Set these three in the Render dashboard. Never commit secrets.
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: SYNC_TOKEN
+        sync: false
