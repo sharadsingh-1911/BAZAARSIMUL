@@ -47,6 +47,12 @@ const userSchema = new mongoose.Schema({
   totalCharges: { type: Number, default: 0 },
   tradeCount: { type: Number, default: 0 },
 
+  // Monotonic order counter. Lives here rather than being derived from a
+  // countDocuments() on the orders collection, because /auth/reset deletes
+  // orders — a derived count would restart at zero and reuse references.
+  // This never resets for the life of the account.
+  orderSeq: { type: Number, default: 0 },
+
   lastLoginAt: Date,
 }, { timestamps: true });
 

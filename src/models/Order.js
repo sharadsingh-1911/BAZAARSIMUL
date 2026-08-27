@@ -17,7 +17,12 @@ const chargesSchema = new mongoose.Schema({
  */
 const orderSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-  reference: { type: String, required: true, unique: true }, // SB-000001
+
+  // Human-readable and scoped PER USER — everyone's first order is BS-000001.
+  // Note there is no `unique: true` here. A global unique index would be wrong,
+  // because the numbering is per-user: two accounts both reaching BS-000001 is
+  // correct and expected. The compound index below enforces the real rule.
+  reference: { type: String, required: true },
 
   symbol: { type: String, required: true, uppercase: true, index: true },
   name: String,
@@ -42,11 +47,7 @@ const orderSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 orderSchema.index({ user: 1, placedAt: -1 });
-
-/** Monotonic per-user reference. Cheap because of the compound index above. */
-orderSchema.statics.nextReference = async function nextReference(userId) {
-  const count = await this.countDocuments({ user: userId });
-  return `BS-${String(count + 1).padStart(6, '0')}`;
-};
+// The constraint that actually matters: a reference is unique within an account.
+orderSchema.index({ user: 1, reference: 1 }, { unique: true });
 
 module.exports = mongoose.model('Order', orderSchema);

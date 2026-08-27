@@ -121,12 +121,19 @@ async function executeOrder({ user, symbol, side, quantity, orderType = 'MARKET'
 
   user.totalCharges = round2(user.totalCharges + charges.total);
   user.tradeCount += 1;
+
+  // Order numbering comes off the user document, incremented in the same save as
+  // the cash and position change. Unique within the account, which is what the
+  // {user, reference} index enforces.
+  user.orderSeq = (user.orderSeq || 0) + 1;
+  const reference = `BS-${String(user.orderSeq).padStart(6, '0')}`;
+
   await user.save();
 
   const after = user.findPosition(instrument.symbol);
   const order = await Order.create({
     user: user._id,
-    reference: await Order.nextReference(user._id),
+    reference,
     symbol: instrument.symbol,
     name: instrument.name,
     side,
