@@ -2,9 +2,10 @@ name: EOD price sync
 
 on:
   schedule:
-    # 13:00 UTC = 18:30 IST, weekdays. Three hours after the 15:30 close, so the
-    # provider has settled the official figure rather than a provisional one.
-    - cron: '0 13 * * 1-5'
+        # 16:00 UTC = 21:30 IST. Six hours after the 15:30 close. Yahoo's EOD
+    # settlement for Indian equities is not instant, and an earlier pull
+    # sometimes finds the day's bar still nulled.
+    - cron: '0 16 * * 1-5'
   workflow_dispatch:          # run it by hand from the Actions tab
 
 jobs:

@@ -63,10 +63,44 @@ async function fetchDailyCandles(symbol, exchange = 'NSE', range = '3mo') {
   return { candles, meta: result.meta || {} };
 }
 
-/** Write fetched candles onto the instrument document. */
-async function applyCandles(instrument, candles, source = 'yahoo') {
-  const latest = candles[candles.length - 1];
-  const previous = candles[candles.length - 2];
+/**
+ * Write fetched candles onto the instrument document.
+ *
+ * Two guards, both learned the hard way:
+ *
+ * 1. IN-PROGRESS BARS. During a live session Yahoo returns a bar for today with
+ *    a real number in it — that is the current price, not a close. Writing it
+ *    labels an intraday quote as an official close.
+ *
+ * 2. NO REGRESSION. While the provider settles EOD data it briefly nulls the
+ *    day's bar. A sync landing in that window would otherwise find the previous
+ *    session as the newest non-null candle and overwrite a close we already
+ *    recorded, so the app appears to travel backwards in time.
+ */
+async function applyCandles(instrument, candles, source = 'yahoo', now = new Date()) {
+  // NSE closes 15:30 IST = 10:00 UTC. Yahoo stamps the daily bar at 03:45 UTC
+  // on the same date, so derive the close time from the bar's own date.
+  const sessionCloseOf = (d) => new Date(Date.UTC(
+    d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 10, 0, 0,
+  ));
+
+  const settled = candles.filter((c) => now >= sessionCloseOf(new Date(c.date)));
+  if (!settled.length) {
+    instrument.syncedAt = now;
+    await instrument.save();
+    return instrument;
+  }
+
+  const latest = settled[settled.length - 1];
+  const previous = settled[settled.length - 2];
+
+  if (instrument.asOf && new Date(latest.date) <= new Date(instrument.asOf)) {
+    // Nothing newer than what we hold. Record the attempt and leave prices be.
+    instrument.syncedAt = now;
+    instrument.syncError = undefined;
+    await instrument.save();
+    return instrument;
+  }
 
   instrument.lastPrice = round2(latest.close);
   instrument.prevClose = round2(previous ? previous.close : latest.open ?? latest.close);
@@ -76,9 +110,9 @@ async function applyCandles(instrument, candles, source = 'yahoo') {
   instrument.volume = latest.volume;
   instrument.asOf = latest.date;
   instrument.priceSource = source;
-  instrument.syncedAt = new Date();
+  instrument.syncedAt = now;
   instrument.syncError = undefined;
-  instrument.history = candles.slice(-HISTORY_CAP);
+  instrument.history = settled.slice(-HISTORY_CAP);
 
   await instrument.save();
   return instrument;
